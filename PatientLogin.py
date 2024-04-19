@@ -3,9 +3,11 @@ import mysql.connector
 from werkzeug.security import check_password_hash
 from datetime import datetime, timedelta
 import json
+from flask import session
 
 
 app = Flask(__name__)
+app.secret_key = 'secret_key'
 
 # Database configuration
 db_config = {
@@ -14,6 +16,8 @@ db_config = {
     'password': 'Admin',
     'database': 'PatientInfoMed',
 }
+
+
 
 @app.route('/login', methods=['POST'])
 def login():
@@ -33,6 +37,7 @@ def login():
         if user:
             print("User found in database:", user['Name'])  # Log user details (careful with sensitive data)
             if check_password_hash(user['password_hash'], password):
+                session['patient_id'] = user['PatientID']
                 print("Password verification successful.")
                 return jsonify({"success": True, "message": "Login successful"}), 200
             else:
@@ -57,12 +62,15 @@ def login():
 
 @app.route('/add_medication_with_reminders', methods=['POST'])
 def add_medication_with_reminders():
+    if 'patient_id' not in session:
+        return jsonify({"success": False, "message": "User is not logged in"}), 403
+    
     data = request.json
     print("Received data for adding medication:", json.dumps(data, indent=2))
 
     # Extract and validate input data
     try:
-        patient_id = data['PatientID']
+        patient_id = session['patient_id']
         medication_name = data['MedicationName']
         dosage = data['Dosage']
         frequency = data['Frequency']
