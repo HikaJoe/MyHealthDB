@@ -1,7 +1,8 @@
 from flask import Flask, request, jsonify
 import mysql.connector
 from werkzeug.security import check_password_hash
-from datetime import datetime
+
+import datetime
 import json
 
 app = Flask(__name__)
@@ -178,6 +179,8 @@ def get_vital_signs():
             conn.close()
             print("Database connection closed.")  # Debug: Confirm closure
 
+
+
 @app.route('/api/medications', methods=['GET'])
 def get_medications():
     patient_id = request.args.get('patientID', '1')
@@ -188,27 +191,32 @@ def get_medications():
         cursor = conn.cursor(dictionary=True)
         print("Database connection established.")
 
+        # Query medications
         query = "SELECT * FROM Medications WHERE PatientID = %s;"
         print(f"Executing query: {query} with patientID: {patient_id}")
         cursor.execute(query, (patient_id,))
-        results = cursor.fetchall()
-        print(f"Query executed. Number of results: {len(results)}")
+        medications = cursor.fetchall()
+        print(f"Query executed. Number of medications: {len(medications)}")
 
-        results = [dict(row) for row in results]
-        for result in results:
-            if 'StartDate' in result and isinstance(result['StartDate'], datetime):
-                result['StartDate'] = result['StartDate'].isoformat()
-            if 'EndDate' in result and isinstance(result['EndDate'], datetime):
-                result['EndDate'] = result['EndDate'].isoformat()
-
+        # Query reminders
         query = "SELECT * FROM Reminders WHERE PatientID = %s;"
         print(f"Executing query: {query} with patientID: {patient_id}")
         cursor.execute(query, (patient_id,))
         reminders = cursor.fetchall()
-        print(f"Query executed. Number of results: {len(reminders)}")
+        print(f"Query executed. Number of reminders: {len(reminders)}")
 
-        print(f"Results: {results}")
-        return jsonify({"data": results, "status": "success"}), 200
+        # Convert timedelta objects to ISO 8601 format
+        for reminder in reminders:
+            reminder_time = datetime.datetime.min + reminder['ReminderTime']
+            reminder['ReminderTime'] = (reminder_time - datetime.datetime.utcfromtimestamp(0)).total_seconds()
+
+            # Ensure 'activeStatus' key is present in each reminder
+            reminder['activeStatus'] = bool(reminder['ActiveStatus'])
+
+        print(f"Medications: {medications}")
+        print(f"Reminders: {reminders}")
+
+        return jsonify({"medications": medications, "reminders": reminders, "status": "success"}), 200
     except mysql.connector.Error as err:
         print(f"Database error: {err}")
         return jsonify({"error": str(err), "status": "error"}), 500
@@ -217,7 +225,9 @@ def get_medications():
             cursor.close()
             conn.close()
             print("Database connection closed.")
-            
+
+
+
 
 if __name__ == '__main__':
     app.run(debug=True, port=5001)
