@@ -1,9 +1,9 @@
 from flask import Flask, request, jsonify
 import mysql.connector
 from werkzeug.security import check_password_hash
-
-import datetime
+from datetime import datetime, timedelta
 import json
+
 
 app = Flask(__name__)
 
@@ -49,58 +49,63 @@ def login():
             cursor.close()
             conn.close()
 
+
+
+
+
+
+
 @app.route('/add_medication_with_reminders', methods=['POST'])
 def add_medication_with_reminders():
     data = request.json
     print("Received data for adding medication:", json.dumps(data, indent=2))
 
-    patient_id = data.get('PatientID')
-    medication_name = data.get('MedicationName')
-    dosage = data.get('Dosage')
-    frequency = data.get('Frequency')
-    start_date = data.get('StartDate')
-    end_date = data.get('EndDate')
-    
-    # Expecting a list of times, convert them into 24-hour format
-    reminder_times = [datetime.strptime(rt, '%I:%M %p').strftime('%H:%M') if 'AM' in rt or 'PM' in rt else rt for rt in data.get('ReminderTimes', [])]
-
-    if not all([patient_id, medication_name, dosage, frequency, start_date, end_date, reminder_times]):
-        return jsonify({"success": False, "message": "Missing required medication or reminder data"}), 400
-
+    # Extract and validate input data
     try:
-        start_date = datetime.fromisoformat(start_date).date()
-        end_date = datetime.fromisoformat(end_date).date()
+        patient_id = data['PatientID']
+        medication_name = data['MedicationName']
+        dosage = data['Dosage']
+        frequency = data['Frequency']
+        start_date = datetime.fromisoformat(data['StartDate']).date()
+        end_date = datetime.fromisoformat(data['EndDate']).date()
+        reminder_times = [datetime.strptime(rt, '%I:%M %p').strftime('%H:%M')
+                          for rt in data.get('ReminderTimes', []) if 'AM' in rt or 'PM' in rt]
+    except KeyError as e:
+        return jsonify({"success": False, "message": f"Missing parameter: {e}"}), 400
     except ValueError as e:
-        return jsonify({"success": False, "message": f"Date formatting error: {e}"}), 400
+        return jsonify({"success": False, "message": f"Invalid date or time format: {e}"}), 400
 
+    # Connect to the database and execute queries
     try:
         conn = mysql.connector.connect(**db_config)
         cursor = conn.cursor()
-
-        medication_query = """
-        INSERT INTO Medications (PatientID, MedicationName, Dosage, Frequency, StartDate, EndDate)
-        VALUES (%s, %s, %s, %s, %s, %s)
-        """
-        cursor.execute(medication_query, (patient_id, medication_name, dosage, frequency, start_date, end_date))
+        cursor.execute("""
+            INSERT INTO Medications (PatientID, MedicationName, Dosage, Frequency, StartDate, EndDate)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (patient_id, medication_name, dosage, frequency, start_date, end_date))
+        
         medication_id = cursor.lastrowid
-
-        reminder_query = """
-        INSERT INTO Reminders (PatientID, MedicationID, ReminderTime, ReminderFrequency, ActiveStatus)
-        VALUES (%s, %s, %s, %s, TRUE)
-        """
         for reminder_time in reminder_times:
-            cursor.execute(reminder_query, (patient_id, medication_id, reminder_time, frequency))
+            cursor.execute("""
+                INSERT INTO Reminders (PatientID, MedicationID, ReminderTime, ReminderFrequency, ActiveStatus)
+                VALUES (%s, %s, %s, %s, TRUE)
+            """, (patient_id, medication_id, reminder_time, frequency))
         
         conn.commit()
         return jsonify({"success": True, "message": "Medication and reminders added successfully"}), 200
     except mysql.connector.Error as err:
         print(f"Database error: {err}")
-        conn.rollback()  # Rollback in case of any error
+        conn.rollback()
         return jsonify({"success": False, "message": f"Database error: {err}"}), 500
     finally:
         if conn.is_connected():
             cursor.close()
             conn.close()
+
+
+
+
+
 
 
 @app.route('/api/vitalsigns', methods=['POST'])
@@ -147,6 +152,11 @@ def add_vital_signs():
         return jsonify({"error": "Request must be JSON", "status": "error"}), 400
     
 
+
+
+
+
+
 @app.route('/api/vital_signs', methods=['GET'])
 def get_vital_signs():
     patient_id = request.args.get('patientID', '1')  # Default patientID set to '1'
@@ -181,6 +191,15 @@ def get_vital_signs():
 
 
 
+
+
+
+# Convert timedelta objects to ISO 8601 format
+def serialize_timedelta(obj):
+    if isinstance(obj, timedelta):
+        return obj.total_seconds()
+    raise TypeError("Object of type timedelta is not JSON serializable")
+
 @app.route('/api/medications', methods=['GET'])
 def get_medications():
     patient_id = request.args.get('patientID', '1')
@@ -191,32 +210,42 @@ def get_medications():
         cursor = conn.cursor(dictionary=True)
         print("Database connection established.")
 
-        # Query medications
-        query = "SELECT * FROM Medications WHERE PatientID = %s;"
+        # Query medications with reminders
+        query = """
+        SELECT m.*, r.ReminderID, r.ReminderTime, r.ReminderFrequency, r.ActiveStatus 
+        FROM Medications m 
+        LEFT JOIN Reminders r ON m.MedicationID = r.MedicationID 
+        WHERE m.PatientID = %s;
+        """
         print(f"Executing query: {query} with patientID: {patient_id}")
         cursor.execute(query, (patient_id,))
-        medications = cursor.fetchall()
-        print(f"Query executed. Number of medications: {len(medications)}")
-
-        # Query reminders
-        query = "SELECT * FROM Reminders WHERE PatientID = %s;"
-        print(f"Executing query: {query} with patientID: {patient_id}")
-        cursor.execute(query, (patient_id,))
-        reminders = cursor.fetchall()
-        print(f"Query executed. Number of reminders: {len(reminders)}")
-
-        # Convert timedelta objects to ISO 8601 format
-        for reminder in reminders:
-            reminder_time = datetime.datetime.min + reminder['ReminderTime']
-            reminder['ReminderTime'] = (reminder_time - datetime.datetime.utcfromtimestamp(0)).total_seconds()
-
-            # Ensure 'activeStatus' key is present in each reminder
-            reminder['activeStatus'] = bool(reminder['ActiveStatus'])
+        medications = {}
+        for row in cursor:
+            medication_id = row['MedicationID']
+            if medication_id not in medications:
+                medications[medication_id] = {
+                    'MedicationID': medication_id,
+                    'MedicationName': row['MedicationName'],
+                    'Dosage': row['Dosage'],
+                    'Frequency': row['Frequency'],
+                    'StartDate': row['StartDate'],
+                    'EndDate': row['EndDate'],
+                    'PatientID': row['PatientID'],
+                    'Reminders': []
+                }
+            if row['ReminderID']:
+                medications[medication_id]['Reminders'].append({
+                    'ReminderID': row['ReminderID'],
+                    'ReminderTime': serialize_timedelta(row['ReminderTime']),
+                    'ReminderFrequency': row['ReminderFrequency'],
+                    'ActiveStatus': bool(row['ActiveStatus']),
+                    'PatientID': row['PatientID'],
+                    'MedicationID': medication_id
+                })
 
         print(f"Medications: {medications}")
-        print(f"Reminders: {reminders}")
 
-        return jsonify({"medications": medications, "reminders": reminders, "status": "success"}), 200
+        return jsonify({"medications": list(medications.values()), "status": "success"}), 200
     except mysql.connector.Error as err:
         print(f"Database error: {err}")
         return jsonify({"error": str(err), "status": "error"}), 500
@@ -225,8 +254,6 @@ def get_medications():
             cursor.close()
             conn.close()
             print("Database connection closed.")
-
-
 
 
 if __name__ == '__main__':
