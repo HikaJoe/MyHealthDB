@@ -68,7 +68,6 @@ def add_medication_with_reminders():
     data = request.json
     print("Received data for adding medication:", json.dumps(data, indent=2))
 
-    # Extract and validate input data
     try:
         patient_id = session['patient_id']
         medication_name = data['MedicationName']
@@ -76,39 +75,36 @@ def add_medication_with_reminders():
         frequency = data['Frequency']
         start_date = datetime.fromisoformat(data['StartDate']).date()
         end_date = datetime.fromisoformat(data['EndDate']).date()
-        reminder_times = [datetime.strptime(rt, '%I:%M %p').strftime('%H:%M')
-                          for rt in data.get('ReminderTimes', []) if 'AM' in rt or 'PM' in rt]
-    except KeyError as e:
-        return jsonify({"success": False, "message": f"Missing parameter: {e}"}), 400
-    except ValueError as e:
-        return jsonify({"success": False, "message": f"Invalid date or time format: {e}"}), 400
+        reminder_times = [datetime.strptime(rt, '%I:%M %p').strftime('%H:%M') for rt in data.get('ReminderTimes', []) if 'AM' in rt or 'PM' in rt]
+        
+        with mysql.connector.connect(**db_config) as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("""
+                    INSERT INTO Medications (PatientID, MedicationName, Dosage, Frequency, StartDate, EndDate)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                """, (patient_id, medication_name, dosage, frequency, start_date, end_date))
+                
+                medication_id = cursor.lastrowid
+                for reminder_time in reminder_times:
+                    print(f"Inserting reminder for time: {reminder_time}")
+                    cursor.execute("""
+                        INSERT INTO Reminders (PatientID, MedicationID, ReminderTime, ReminderFrequency, ActiveStatus)
+                        VALUES (%s, %s, %s, %s, TRUE)
+                    """, (patient_id, medication_id, reminder_time, frequency))
+                    print(f"Inserted reminder for time: {reminder_time}")
+                
+                conn.commit()
+                return jsonify({"success": True, "message": "Medication and reminders added successfully"}), 200
 
-    # Connect to the database and execute queries
-    try:
-        conn = mysql.connector.connect(**db_config)
-        cursor = conn.cursor()
-        cursor.execute("""
-            INSERT INTO Medications (PatientID, MedicationName, Dosage, Frequency, StartDate, EndDate)
-            VALUES (%s, %s, %s, %s, %s, %s)
-        """, (patient_id, medication_name, dosage, frequency, start_date, end_date))
-        
-        medication_id = cursor.lastrowid
-        for reminder_time in reminder_times:
-            cursor.execute("""
-                INSERT INTO Reminders (PatientID, MedicationID, ReminderTime, ReminderFrequency, ActiveStatus)
-                VALUES (%s, %s, %s, %s, TRUE)
-            """, (patient_id, medication_id, reminder_time, frequency))
-        
-        conn.commit()
-        return jsonify({"success": True, "message": "Medication and reminders added successfully"}), 200
     except mysql.connector.Error as err:
         print(f"Database error: {err}")
-        conn.rollback()
-        return jsonify({"success": False, "message": f"Database error: {err}"}), 500
-    finally:
         if conn.is_connected():
-            cursor.close()
-            conn.close()
+            conn.rollback()
+        return jsonify({"success": False, "message": f"Database error: {err}"}), 500
+
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+        return jsonify({"success": False, "message": f"Unexpected error: {e}"}), 500
 
 
 
@@ -221,57 +217,52 @@ def get_medications():
         return jsonify({"error": "User is not logged in or session has expired", "status": "error"}), 401
 
     patient_id = session['patient_id']
-    print(f"Using patientID: {patient_id}")
-
     try:
         conn = mysql.connector.connect(**db_config)
-        cursor = conn.cursor(dictionary=True)
-        print("Database connection established.")
+        with conn.cursor(dictionary=True) as cursor:
+            print("Database connection established.")
+            query = """
+            SELECT m.*, r.ReminderID, TIME_FORMAT(r.ReminderTime, '%H:%i') AS ReminderTime, r.ReminderFrequency, r.ActiveStatus 
+            FROM Medications m 
+            LEFT JOIN Reminders r ON m.MedicationID = r.MedicationID 
+            WHERE m.PatientID = %s;
+            """
+            cursor.execute(query, (patient_id,))
+            medications = {}
+            for row in cursor:
+                medication_id = row['MedicationID']
+                if medication_id not in medications:
+                    medications[medication_id] = {
+                        'MedicationID': medication_id,
+                        'MedicationName': row['MedicationName'],
+                        'Dosage': row['Dosage'],
+                        'Frequency': row['Frequency'],
+                        'StartDate': row['StartDate'].isoformat(),
+                        'EndDate': row['EndDate'].isoformat() if row['EndDate'] else None,
+                        'PatientID': row['PatientID'],
+                        'Reminders': []
+                    }
+                if row.get('ReminderID'):
+                    medications[medication_id]['Reminders'].append({
+                        'ReminderID': row['ReminderID'],
+                        'ReminderTime': row['ReminderTime'],  # Return as formatted string
+                        'ReminderFrequency': row['ReminderFrequency'],
+                        'ActiveStatus': bool(row['ActiveStatus']),
+                        'PatientID': row['PatientID'],
+                        'MedicationID': medication_id
+                    })
 
-        # Query medications with reminders
-        query = """
-        SELECT m.*, r.ReminderID, r.ReminderTime, r.ReminderFrequency, r.ActiveStatus 
-        FROM Medications m 
-        LEFT JOIN Reminders r ON m.MedicationID = r.MedicationID 
-        WHERE m.PatientID = %s;
-        """
-        print(f"Executing query: {query} with patientID: {patient_id}")
-        cursor.execute(query, (patient_id,))
-        medications = {}
-        for row in cursor:
-            medication_id = row['MedicationID']
-            if medication_id not in medications:
-                medications[medication_id] = {
-                    'MedicationID': medication_id,
-                    'MedicationName': row['MedicationName'],
-                    'Dosage': row['Dosage'],
-                    'Frequency': row['Frequency'],
-                    'StartDate': row['StartDate'],
-                    'EndDate': row['EndDate'],
-                    'PatientID': row['PatientID'],
-                    'Reminders': []
-                }
-            if row['ReminderID']:
-                medications[medication_id]['Reminders'].append({
-                    'ReminderID': row['ReminderID'],
-                    'ReminderTime': row['ReminderTime'].strftime('%H:%M'),  # assuming you have corrected the serialization
-                    'ReminderFrequency': row['ReminderFrequency'],
-                    'ActiveStatus': bool(row['ActiveStatus']),
-                    'PatientID': row['PatientID'],
-                    'MedicationID': medication_id
-                })
-
-        print(f"Medications: {medications}")
-
-        return jsonify({"medications": list(medications.values()), "status": "success"}), 200
+            print(f"Medications: {medications}")
+            return jsonify({"medications": list(medications.values()), "status": "success"}), 200
     except mysql.connector.Error as err:
         print(f"Database error: {err}")
         return jsonify({"error": str(err), "status": "error"}), 500
     finally:
-        if conn and conn.is_connected():
-            cursor.close()
+        if conn.is_connected():
             conn.close()
             print("Database connection closed.")
+
+
 
 
 if __name__ == '__main__':
