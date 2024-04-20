@@ -75,8 +75,10 @@ def add_medication_with_reminders():
         frequency = data['Frequency']
         start_date = datetime.fromisoformat(data['StartDate']).date()
         end_date = datetime.fromisoformat(data['EndDate']).date()
-        reminder_times = [datetime.strptime(rt, '%I:%M %p').strftime('%H:%M') for rt in data.get('ReminderTimes', []) if 'AM' in rt or 'PM' in rt]
-        
+
+        # Handling reminder times flexibly, assuming 24-hour format directly from input
+        reminder_times = [datetime.strptime(rt, '%H:%M').strftime('%H:%M') for rt in data.get('ReminderTimes', [])]
+
         with mysql.connector.connect(**db_config) as conn:
             with conn.cursor() as cursor:
                 cursor.execute("""
@@ -105,8 +107,6 @@ def add_medication_with_reminders():
     except Exception as e:
         print(f"Unexpected error: {e}")
         return jsonify({"success": False, "message": f"Unexpected error: {e}"}), 500
-
-
 
 
 
