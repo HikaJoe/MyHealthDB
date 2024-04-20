@@ -118,6 +118,9 @@ def add_medication_with_reminders():
 
 @app.route('/api/vitalsigns', methods=['POST'])
 def add_vital_signs():
+    if 'patient_id' not in session:
+        return jsonify({"error": "User not logged in or session expired", "status": "error"}), 403
+
     if request.is_json:
         data = request.get_json()
         print("Received the following vital sign data:")
@@ -125,7 +128,7 @@ def add_vital_signs():
 
         try:
             timestamp = datetime.fromisoformat(data['timestamp'])
-            patient_id = data['patientID']
+            patient_id = session['patient_id']  # Use session-stored patient ID
             type_of_vital_sign = data['typeOfVitalSign']
             measurement_value = data['measurementValue']
             notes = data.get('notes', '')  # Default to empty string if notes are not provided
@@ -140,10 +143,11 @@ def add_vital_signs():
             VALUES (%s, %s, %s, %s, %s)
             """
             cursor.execute(insert_sql, (patient_id, timestamp, type_of_vital_sign, measurement_value, notes))
-            conn.commit()  # Commit the transaction
+            conn.commit()
 
             return jsonify({"message": "Vital sign recorded successfully", "status": "success"}), 200
         except mysql.connector.Error as err:
+            conn.rollback()
             print(f"Database error: {err}")
             return jsonify({"error": str(err), "status": "error"}), 500
         except KeyError as ke:
@@ -167,7 +171,11 @@ def add_vital_signs():
 
 @app.route('/api/vital_signs', methods=['GET'])
 def get_vital_signs():
-    patient_id = request.args.get('patientID', '1')  # Default patientID set to '1'
+    # Check if the patient is logged in and get the patient_id from session
+    if 'patient_id' not in session:
+        return jsonify({"error": "User is not logged in or session has expired", "status": "error"}), 401
+    
+    patient_id = session['patient_id']
     print(f"Using patientID: {patient_id}")  # Debug: Check what patientID is being used
 
     try:
@@ -195,8 +203,7 @@ def get_vital_signs():
         if conn and conn.is_connected():
             cursor.close()
             conn.close()
-            print("Database connection closed.")  # Debug: Confirm closure
-
+            print("Database connection closed.") 
 
 
 
@@ -210,7 +217,10 @@ def serialize_timedelta(obj):
 
 @app.route('/api/medications', methods=['GET'])
 def get_medications():
-    patient_id = request.args.get('patientID', '1')
+    if 'patient_id' not in session:
+        return jsonify({"error": "User is not logged in or session has expired", "status": "error"}), 401
+
+    patient_id = session['patient_id']
     print(f"Using patientID: {patient_id}")
 
     try:
@@ -244,7 +254,7 @@ def get_medications():
             if row['ReminderID']:
                 medications[medication_id]['Reminders'].append({
                     'ReminderID': row['ReminderID'],
-                    'ReminderTime': serialize_timedelta(row['ReminderTime']),
+                    'ReminderTime': row['ReminderTime'].strftime('%H:%M'),  # assuming you have corrected the serialization
                     'ReminderFrequency': row['ReminderFrequency'],
                     'ActiveStatus': bool(row['ActiveStatus']),
                     'PatientID': row['PatientID'],
