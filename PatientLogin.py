@@ -4,6 +4,7 @@ from werkzeug.security import check_password_hash
 from datetime import datetime, timedelta
 import json
 from flask import session
+from flask import jsonify, make_response
 
 
 app = Flask(__name__)
@@ -25,35 +26,28 @@ def login():
     user_identifier = data.get('user_identifier')
     password = data.get('password')
 
-    print("Attempting to log in user:", user_identifier)  # Log the attempt
+    print("Attempting to log in user:", user_identifier)
 
     try:
-        conn = mysql.connector.connect(**db_config)
-        cursor = conn.cursor(dictionary=True)
-        query = "SELECT * FROM Patients WHERE Name = %s OR PhoneNumber = %s"
-        cursor.execute(query, (user_identifier, user_identifier))
-        user = cursor.fetchone()
+        with mysql.connector.connect(**db_config) as conn:
+            with conn.cursor(dictionary=True) as cursor:
+                query = "SELECT * FROM Patients WHERE Name = %s OR PhoneNumber = %s"
+                cursor.execute(query, (user_identifier, user_identifier))
+                user = cursor.fetchone()
 
-        if user:
-            print("User found in database:", user['Name'])  # Log user details (careful with sensitive data)
-            if check_password_hash(user['password_hash'], password):
-                session['patient_id'] = user['PatientID']
-                print("Password verification successful.")
-                return jsonify({"success": True, "message": "Login successful"}), 200
-            else:
-                print("Password verification failed.")
-                return jsonify({"success": False, "message": "Invalid credentials"}), 401
-        else:
-            print("User not found.")
-            return jsonify({"success": False, "message": "Invalid credentials"}), 401
+                if user:
+                    if check_password_hash(user['password_hash'], password):
+                        session['patient_id'] = user['PatientID']
+                        session.permanent = True  # Makes the session permanent until it is explicitly cleared
+                        print("Login successful for:", user['Name'])
+                        return jsonify({"success": True, "message": "Login successful"}), 200
+                    else:
+                        return jsonify({"success": False, "message": "Invalid credentials"}), 401
+                else:
+                    return jsonify({"success": False, "message": "User not found"}), 401
     except mysql.connector.Error as err:
         print(f"Database error: {err}")
         return jsonify({"success": False, "message": "Database error"}), 500
-    finally:
-        if conn.is_connected():
-            cursor.close()
-            conn.close()
-
 
 
 
@@ -75,6 +69,7 @@ def add_medication_with_reminders():
         frequency = data['Frequency']
         start_date = datetime.fromisoformat(data['StartDate']).date()
         end_date = datetime.fromisoformat(data['EndDate']).date()
+        notes = data['ImportantInformation']
 
         # Handling reminder times flexibly, assuming 24-hour format directly from input
         reminder_times = [datetime.strptime(rt, '%H:%M').strftime('%H:%M') for rt in data.get('ReminderTimes', [])]
@@ -82,9 +77,9 @@ def add_medication_with_reminders():
         with mysql.connector.connect(**db_config) as conn:
             with conn.cursor() as cursor:
                 cursor.execute("""
-                    INSERT INTO Medications (PatientID, MedicationName, Dosage, Frequency, StartDate, EndDate)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                """, (patient_id, medication_name, dosage, frequency, start_date, end_date))
+                    INSERT INTO Medications (PatientID, MedicationName, Dosage, Frequency, StartDate, EndDate,Notes)
+                    VALUES (%s, %s, %s, %s, %s, %s,%s)
+                """, (patient_id, medication_name, dosage, frequency, start_date, end_date,notes))
                 
                 medication_id = cursor.lastrowid
                 for reminder_time in reminder_times:
@@ -222,7 +217,7 @@ def get_medications():
         with conn.cursor(dictionary=True) as cursor:
             print("Database connection established.")
             query = """
-            SELECT m.*, r.ReminderID, TIME_FORMAT(r.ReminderTime, '%H:%i') AS ReminderTime, r.ReminderFrequency, r.ActiveStatus 
+            SELECT m.*, r.ReminderID, TIME_FORMAT(r.ReminderTime, '%H:%i') AS ReminderTime, r.ReminderFrequency, r.ActiveStatus,m.Notes
             FROM Medications m 
             LEFT JOIN Reminders r ON m.MedicationID = r.MedicationID 
             WHERE m.PatientID = %s;
@@ -239,6 +234,7 @@ def get_medications():
                         'Frequency': row['Frequency'],
                         'StartDate': row['StartDate'].isoformat(),
                         'EndDate': row['EndDate'].isoformat() if row['EndDate'] else None,
+                        'Notes': row['Notes'],
                         'PatientID': row['PatientID'],
                         'Reminders': []
                     }
@@ -261,6 +257,36 @@ def get_medications():
         if conn.is_connected():
             conn.close()
             print("Database connection closed.")
+
+
+
+
+@app.route('/api/user_profile', methods=['GET'])
+def get_user_profile():
+    if 'patient_id' not in session:
+        return jsonify({"error": "User is not logged in or session has expired"}), 401
+
+    patient_id = session['patient_id']
+    try:
+        with mysql.connector.connect(**db_config) as conn:
+            with conn.cursor(dictionary=True) as cursor:
+                # Fetch user data based on patient_id stored in session
+                cursor.execute("""
+                SELECT Name AS name, DateOfBirth AS dateOfBirth, Email AS email 
+                FROM Patients 
+                WHERE PatientID = %s
+                """, (patient_id,))
+                user = cursor.fetchone()
+
+                if user and user['dateOfBirth']:
+                    # Format the date of birth to string if necessary
+                    user['dateOfBirth'] = user['dateOfBirth'].isoformat()
+
+                    print(f"User data: {user}")
+                
+            return jsonify(user) if user else make_response(jsonify({"error": "No user found"}), 404)
+    except mysql.connector.Error as err:
+        return make_response(jsonify({"error": "Database error: " + str(err)}), 500)
 
 
 
