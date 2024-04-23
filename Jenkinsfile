@@ -38,7 +38,7 @@ pipeline {
                 }
             }
         }
-
+        //deploy
         stage('Clean Up') {
             steps {
                 script {
