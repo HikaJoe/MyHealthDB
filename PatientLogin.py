@@ -111,18 +111,18 @@ def add_vital_signs():
         print("Received the following vital sign data:")
         print(json.dumps(data, indent=4))
 
+        conn = None
+
         try:
             timestamp = datetime.fromisoformat(data['timestamp'])
-            patient_id = session['patient_id']  # Use session-stored patient ID
+            patient_id = session['patient_id']
             type_of_vital_sign = data['typeOfVitalSign']
             measurement_value = data['measurementValue']
-            notes = data.get('notes', '')  # Default to empty string if notes are not provided
+            notes = data.get('notes', '')
 
-            # Establish a database connection
             conn = mysql.connector.connect(**db_config)
             cursor = conn.cursor()
 
-            # SQL to insert data
             insert_sql = """
             INSERT INTO VitalSigns (PatientID, Timestamp, TypeOfVitalSign, MeasurementValue, Notes)
             VALUES (%s, %s, %s, %s, %s)
@@ -132,7 +132,8 @@ def add_vital_signs():
 
             return jsonify({"message": "Vital sign recorded successfully", "status": "success"}), 200
         except mysql.connector.Error as err:
-            conn.rollback()
+            if conn and conn.is_connected():
+                conn.rollback()
             print(f"Database error: {err}")
             return jsonify({"error": str(err), "status": "error"}), 500
         except KeyError as ke:
@@ -142,12 +143,12 @@ def add_vital_signs():
             print(f"Data format error: {ve}")
             return jsonify({"error": f"Data format error: {ve}", "status": "error"}), 400
         finally:
-            if conn.is_connected():
+            if conn:
                 cursor.close()
                 conn.close()
+                print("Database connection closed.")
     else:
         return jsonify({"error": "Request must be JSON", "status": "error"}), 400
-    
 
 
 
