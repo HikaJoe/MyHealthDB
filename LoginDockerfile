@@ -14,7 +14,7 @@ COPY config.py .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Expose the port the application runs on
-EXPOSE 5000
+EXPOSE 5001
 
 # Run the application with Gunicorn
-CMD ["gunicorn", "-w", "4", "-b", "0.0.0.0:5001", "PatientLogin:app"]
+CMD ["gunicorn", "-w", "4", "-b", "0.0.0.0:5001", "--reload", "PatientLogin:app"]
