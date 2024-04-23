@@ -24,7 +24,7 @@ pipeline {
 
         stage('Push Registration Image') {
             steps {
-                // Log in and push the registration image to Docker Hub
+                // Log in and push registration image to Docker Hub
                 script {
                     docker.withRegistry('https://index.docker.io/v1/', env.DOCKER_CREDENTIALS_ID) {
                         def registrationImage = docker.image("yourusername/registration:${BUILD_NUMBER}")
