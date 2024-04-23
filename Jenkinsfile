@@ -27,7 +27,7 @@ pipeline {
                 // Log in and push registration image to Docker Hub
                 script {
                     docker.withRegistry('https://index.docker.io/v1/', env.DOCKER_CREDENTIALS_ID) {
-                        def registrationImage = docker.image("yourusername/registration:${BUILD_NUMBER}")
+                        def registrationImage = docker.image("hikajoe/registration:${BUILD_NUMBER}")
                         registrationImage.push()
                     }
                 }
@@ -48,7 +48,7 @@ pipeline {
                 // Log in and push the login image to Docker Hub
                 script {
                     docker.withRegistry('https://index.docker.io/v1/', env.DOCKER_CREDENTIALS_ID) {
-                        def loginImage = docker.image("yourusername/login:${BUILD_NUMBER}")
+                        def loginImage = docker.image("hikajoe/login:${BUILD_NUMBER}")
                         loginImage.push()
                     }
                 }
@@ -59,8 +59,8 @@ pipeline {
             steps {
                 // Optional: Clean up Docker images
                 script {
-                    docker.image("yourusername/registration:${BUILD_NUMBER}").remove()
-                    docker.image("yourusername/login:${BUILD_NUMBER}").remove()
+                    docker.image(hikajoe/registration:${BUILD_NUMBER}").remove()
+                    docker.image("hikajoe/login:${BUILD_NUMBER}").remove()
                 }
             }
         }
