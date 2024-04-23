@@ -9,9 +9,9 @@ WORKDIR /app
 # Copy the Python script into the container
 RUN pip install --upgrade pip
 
-COPY ../requirements.txt .
+COPY /var/lib/jenkins/workspace/Myapp/requirements.txt .
 
-COPY PatientRegistration.py .
+COPY /var/lib/jenkins/workspace/Myapp/PatientRegistration.py .
 
 # Install any needed dependencies (if required)
 RUN pip install --no-cache-dir -r requirements.txt
