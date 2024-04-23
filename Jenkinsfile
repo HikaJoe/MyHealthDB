@@ -15,7 +15,7 @@ pipeline {
 
         stage('Build Registration Image') {
             steps {
-                // Build the Docker image from RegistrationDockerfile
+                // Build the image from RegistrationDockerfile
                 script {
                     def registrationImage = docker.build("yourusername/registration:${BUILD_NUMBER}", "-f RegistrationDockerfile .")
                 }
