@@ -13,7 +13,7 @@ pipeline {
                 checkout scm
             }
         }
-
+        //build and push images
         stage('Build and Push Images') {
             parallel {
                 stage('Build and Push Registration Image') {
