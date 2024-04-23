@@ -1,7 +1,6 @@
 blinker==1.7.0
 cassandra-driver==3.29.0
 certifi==2023.11.17
-cffi @ file:///private/tmp/cffi-20231211-40239-j25k6o/cffi-1.16.0
 charset-normalizer==3.3.2
 click==8.1.7
 docutils @ file:///private/tmp/docutils-20231211-36728-9mhbst/docutils-0.20.1
