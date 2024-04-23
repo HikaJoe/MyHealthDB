@@ -1,4 +1,4 @@
-import os
+
 from flask import Flask, request, jsonify
 import mysql.connector
 from werkzeug.security import check_password_hash
@@ -283,7 +283,6 @@ def get_user_profile():
         return make_response(jsonify({"error": "Database error: " + str(err)}), 500)
 
 
+if __name__ == "__main__":
+    app.run(host='0.0.0.0', port=5001)
 
-
-cmd = "gunicorn -w 4 -b 0.0.0.0:5001 your_app_module:app"
-os.system(cmd)
