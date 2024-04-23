@@ -1,4 +1,5 @@
 
+import os
 from flask import Flask, request, jsonify
 import mysql.connector
 from werkzeug.security import check_password_hash
@@ -10,7 +11,8 @@ from config import db_config
 
 
 app = Flask(__name__)
-app.secret_key = 'secret_key'
+app.secret_key = os.urandom(24)
+app.permanent_session_lifetime = timedelta(days=1)
 
 
 
