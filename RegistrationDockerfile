@@ -9,7 +9,7 @@ WORKDIR /app
 # Copy the Python script into the container
 RUN pip install --upgrade pip
 
-COPY requirements.txt .
+COPY ../requirements.txt .
 
 COPY PatientRegistration.py .
 
