@@ -5,18 +5,11 @@ from datetime import datetime, timedelta
 import json
 from flask import session
 from flask import jsonify, make_response
+from config import db_config
 
 
 app = Flask(__name__)
 app.secret_key = 'secret_key'
-
-# Database configuration
-db_config = {
-    'host': '13.49.107.159',
-    'user': 'root',
-    'password': 'Admin',
-    'database': 'myhealthdb',
-}
 
 
 

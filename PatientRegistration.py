@@ -1,16 +1,9 @@
 from flask import Flask, request, jsonify
 import mysql.connector
 from werkzeug.security import generate_password_hash
+from config import db_config
 
 app = Flask(__name__)
-
-# Replace the following MySQL connection details with your own
-db_config = {
-    'host': '13.49.107.159',
-    'user': 'root',
-    'password': 'Admin',
-    'database': 'myhealthdb'
-}
 
 @app.route('/register', methods=['POST'])
 def register():
