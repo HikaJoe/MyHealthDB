@@ -2,54 +2,38 @@ pipeline {
     agent any
 
     environment {
-        // Define environment variables for Docker Hub credentials
-        DOCKER_CREDENTIALS_ID = 'Docker_Reg_Auth' // ID for Docker Hub credentials stored in Jenkins
+        DOCKER_CREDENTIALS_ID = 'Docker_Reg_Auth'
+        REGISTRATION_IMAGE_TAG = "${GIT_COMMIT}"
+        LOGIN_IMAGE_TAG = "${GIT_COMMIT}"
     }
 
     stages {
         stage('Checkout') {
-        steps {
-            checkout scm: [$class: 'GitSCM', branches: [[name: '*/main']], userRemoteConfigs: [[url: 'https://github.com/HikaJoe/MyHealthDB.git', credentialsId: 'GitHub']]]
-        }
-    }
-
-        stage('Build Registration Image') {
             steps {
-                // Build the image from RegistrationDockerfile
-                script {
-                    def registrationImage = docker.build("yourusername/registration:${BUILD_NUMBER}", "-f RegistrationDockerfile .")
-                }
+                checkout scm
             }
         }
 
-        stage('Push Registration Image') {
-            steps {
-                // Log in and push registration image to Docker Hub
-                script {
-                    docker.withRegistry('https://index.docker.io/v1/', env.DOCKER_CREDENTIALS_ID) {
-                        def registrationImage = docker.image("yourusername/registration:${BUILD_NUMBER}")
-                        registrationImage.push()
+        stage('Build and Push Images') {
+            parallel {
+                stage('Build and Push Registration Image') {
+                    steps {
+                        script {
+                            def registrationImage = docker.build("yourusername/registration:${REGISTRATION_IMAGE_TAG}", "-f RegistrationDockerfile .")
+                            docker.withRegistry('https://index.docker.io/v1/', env.DOCKER_CREDENTIALS_ID) {
+                                registrationImage.push()
+                            }
+                        }
                     }
                 }
-            }
-        }
-
-        stage('Build Login Image') {
-            steps {
-                // Build the Docker image from LoginDockerfile
-                script {
-                    def loginImage = docker.build("yourusername/login:${BUILD_NUMBER}", "-f LoginDockerfile .")
-                }
-            }
-        }
-
-        stage('Push Login Image') {
-            steps {
-                // Log in and push the login image to Docker Hub
-                script {
-                    docker.withRegistry('https://index.docker.io/v1/', env.DOCKER_CREDENTIALS_ID) {
-                        def loginImage = docker.image("yourusername/login:${BUILD_NUMBER}")
-                        loginImage.push()
+                stage('Build and Push Login Image') {
+                    steps {
+                        script {
+                            def loginImage = docker.build("yourusername/login:${LOGIN_IMAGE_TAG}", "-f LoginDockerfile .")
+                            docker.withRegistry('https://index.docker.io/v1/', env.DOCKER_CREDENTIALS_ID) {
+                                loginImage.push()
+                            }
+                        }
                     }
                 }
             }
@@ -57,10 +41,9 @@ pipeline {
 
         stage('Clean Up') {
             steps {
-                // Optional: Clean up Docker images
                 script {
-                    docker.image(yourusername/registration:${BUILD_NUMBER}").remove()
-                    docker.image("yourusername/login:${BUILD_NUMBER}").remove()
+                    docker.image("yourusername/registration:${REGISTRATION_IMAGE_TAG}").remove()
+                    docker.image("yourusername/login:${LOGIN_IMAGE_TAG}").remove()
                 }
             }
         }
@@ -68,7 +51,6 @@ pipeline {
 
     post {
         always {
-            // Always run steps, e.g., cleanup or notifications
             echo 'The pipeline has completed'
         }
     }
