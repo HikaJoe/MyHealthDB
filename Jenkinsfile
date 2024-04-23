@@ -2,8 +2,7 @@ pipeline {
     agent any
 
     environment {
-        // Define environment variables
-        DOCKER_IMAGE = 'yourusername/reponame:tag'
+        // Define environment variables for Docker Hub credentials
         DOCKER_CREDENTIALS_ID = 'Docker_Reg_Auth' // ID for Docker Hub credentials stored in Jenkins
     }
 
@@ -15,21 +14,43 @@ pipeline {
             }
         }
 
-        stage('Build') {
+        stage('Build Registration Image') {
             steps {
-                // Build the Docker image
+                // Build the Docker image from RegistrationDockerfile
                 script {
-                    docker.build(env.DOCKER_IMAGE)
+                    def registrationImage = docker.build("yourusername/registration:${BUILD_NUMBER}", "-f RegistrationDockerfile .")
                 }
             }
         }
 
-        stage('Push') {
+        stage('Push Registration Image') {
             steps {
-                // Log in and push the image to Docker Hub
+                // Log in and push the registration image to Docker Hub
                 script {
                     docker.withRegistry('https://index.docker.io/v1/', env.DOCKER_CREDENTIALS_ID) {
-                        docker.image(env.DOCKER_IMAGE).push()
+                        def registrationImage = docker.image("yourusername/registration:${BUILD_NUMBER}")
+                        registrationImage.push()
+                    }
+                }
+            }
+        }
+
+        stage('Build Login Image') {
+            steps {
+                // Build the Docker image from LoginDockerfile
+                script {
+                    def loginImage = docker.build("yourusername/login:${BUILD_NUMBER}", "-f LoginDockerfile .")
+                }
+            }
+        }
+
+        stage('Push Login Image') {
+            steps {
+                // Log in and push the login image to Docker Hub
+                script {
+                    docker.withRegistry('https://index.docker.io/v1/', env.DOCKER_CREDENTIALS_ID) {
+                        def loginImage = docker.image("yourusername/login:${BUILD_NUMBER}")
+                        loginImage.push()
                     }
                 }
             }
@@ -39,7 +60,8 @@ pipeline {
             steps {
                 // Optional: Clean up Docker images
                 script {
-                    docker.image(env.DOCKER_IMAGE).remove()
+                    docker.image("yourusername/registration:${BUILD_NUMBER}").remove()
+                    docker.image("yourusername/login:${BUILD_NUMBER}").remove()
                 }
             }
         }
