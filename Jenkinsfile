@@ -8,11 +8,10 @@ pipeline {
 
     stages {
         stage('Checkout') {
-            steps {
-                // Checks out the source code
-                git 'https://github.com/HikaJoe/MyHealthDB.git'
-            }
+        steps {
+            checkout scm: [$class: 'GitSCM', branches: [[name: '*/main']], userRemoteConfigs: [[url: 'https://github.com/HikaJoe/MyHealthDB.git', credentialsId: 'GitHub']]]
         }
+    }
 
         stage('Build Registration Image') {
             steps {
