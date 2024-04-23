@@ -40,19 +40,14 @@ pipeline {
             }
         }
         //deploy
-        stage('Clean Up') {
-            steps {
-                script {
-                    docker.image("hikajoe/myhealth:${IMAGE_TAG_REG}").remove()
-                    docker.image("hikajoe/myhealth:${IMAGE_TAG_LOG}").remove()
-                }
-            }
-        }
-    }
-
-    post {
         always {
+            // Clean up Docker images
+            script {
+                sh '''
+                    docker rmi hikajoe/myhealth:${IMAGE_TAG_REG}
+                    docker rmi yhikajoe/myhealth:${IMAGE_TAG_LOG}
+                '''
+            }
             echo 'The pipeline has completed'
         }
     }
-}
