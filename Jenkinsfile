@@ -19,7 +19,7 @@ pipeline {
                 stage('Build and Push Registration Image') {
                     steps {
                         script {
-                            def registrationImage = docker.build("yourusername/registration:${REGISTRATION_IMAGE_TAG}", "-f RegistrationDockerfile .")
+                            def registrationImage = docker.build("yourusername/myhealth:${REGISTRATION_IMAGE_TAG}", "-f RegistrationDockerfile .")
                             docker.withRegistry('https://index.docker.io/v1/', env.DOCKER_CREDENTIALS_ID) {
                                 registrationImage.push()
                             }
@@ -29,7 +29,7 @@ pipeline {
                 stage('Build and Push Login Image') {
                     steps {
                         script {
-                            def loginImage = docker.build("yourusername/login:${LOGIN_IMAGE_TAG}", "-f LoginDockerfile .")
+                            def loginImage = docker.build("yourusername/myhealth:${LOGIN_IMAGE_TAG}", "-f LoginDockerfile .")
                             docker.withRegistry('https://index.docker.io/v1/', env.DOCKER_CREDENTIALS_ID) {
                                 loginImage.push()
                             }
@@ -42,8 +42,8 @@ pipeline {
         stage('Clean Up') {
             steps {
                 script {
-                    docker.image("yourusername/registration:${REGISTRATION_IMAGE_TAG}").remove()
-                    docker.image("yourusername/login:${LOGIN_IMAGE_TAG}").remove()
+                    docker.image("yourusername/myhealth:${REGISTRATION_IMAGE_TAG}").remove()
+                    docker.image("yourusername/myhealth:${LOGIN_IMAGE_TAG}").remove()
                 }
             }
         }
