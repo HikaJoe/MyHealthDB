@@ -3,8 +3,9 @@ pipeline {
 
     environment {
         DOCKER_CREDENTIALS_ID = 'Docker_Reg_Auth'
-        REGISTRATION_IMAGE_TAG = "${GIT_COMMIT}"
         LOGIN_IMAGE_TAG = "${GIT_COMMIT}"
+        IMAGE_TAG_REG = 'Registration.'
+        IMAGE_TAG_LOG = 'Login.'
     }
 
     stages {
@@ -19,7 +20,7 @@ pipeline {
                 stage('Build and Push Registration Image') {
                     steps {
                         script {
-                            def registrationImage = docker.build("hikajoe/myhealth:${REGISTRATION_IMAGE_TAG}", "-f RegistrationDockerfile .")
+                            def registrationImage = docker.build("hikajoe/myhealth:${IMAGE_TAG_REG}", "-f RegistrationDockerfile .")
                             docker.withRegistry('https://index.docker.io/v1/', env.DOCKER_CREDENTIALS_ID) {
                                 registrationImage.push()
                             }
@@ -29,7 +30,7 @@ pipeline {
                 stage('Build and Push Login Image') {
                     steps {
                         script {
-                            def loginImage = docker.build("hikajoe/myhealth:${LOGIN_IMAGE_TAG}", "-f LoginDockerfile .")
+                            def loginImage = docker.build("hikajoe/myhealth:${IMAGE_TAG_LOG}", "-f LoginDockerfile .")
                             docker.withRegistry('https://index.docker.io/v1/', env.DOCKER_CREDENTIALS_ID) {
                                 loginImage.push()
                             }
@@ -42,8 +43,8 @@ pipeline {
         stage('Clean Up') {
             steps {
                 script {
-                    docker.image("hikajoe/myhealth:${REGISTRATION_IMAGE_TAG}").remove()
-                    docker.image("hikajoe/myhealth:${LOGIN_IMAGE_TAG}").remove()
+                    docker.image("hikajoe/myhealth:${IMAGE_TAG_REG}").remove()
+                    docker.image("hikajoe/myhealth:${IMAGE_TAG_LOG}").remove()
                 }
             }
         }
