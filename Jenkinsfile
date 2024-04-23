@@ -4,8 +4,8 @@ pipeline {
     environment {
         DOCKER_CREDENTIALS_ID = 'Docker_Reg_Auth'
         LOGIN_IMAGE_TAG = "${GIT_COMMIT}"
-        IMAGE_TAG_REG = 'Registration.'
-        IMAGE_TAG_LOG = 'Login.'
+        IMAGE_TAG_REG = 'Registration'
+        IMAGE_TAG_LOG = 'Login'
     }
 
     stages {
@@ -39,15 +39,18 @@ pipeline {
                 }
             }
         }
-        //deploy
+    }
+
+    post {
         always {
             // Clean up Docker images
             script {
                 sh '''
                     docker rmi hikajoe/myhealth:${IMAGE_TAG_REG}
-                    docker rmi yhikajoe/myhealth:${IMAGE_TAG_LOG}
+                    docker rmi hikajoe/myhealth:${IMAGE_TAG_LOG}
                 '''
             }
             echo 'The pipeline has completed'
         }
     }
+}
