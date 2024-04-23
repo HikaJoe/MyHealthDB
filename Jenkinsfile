@@ -43,7 +43,7 @@ pipeline {
 
     post {
         always {
-            // Clean up Docker images
+            // Clean up images
             script {
                 sh '''
                     docker rmi hikajoe/myhealth:${IMAGE_TAG_REG}
