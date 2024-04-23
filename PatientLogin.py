@@ -272,7 +272,7 @@ def get_user_profile():
                 user = cursor.fetchone()
 
                 if user and user['dateOfBirth']:
-                    # Format the date of birth to string if necessary
+                    # Format date of birth to string if necessary
                     user['dateOfBirth'] = user['dateOfBirth'].isoformat()
 
                     print(f"User data: {user}")
@@ -285,4 +285,4 @@ def get_user_profile():
 
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5001)
+    app.run(host='0.0.0.0', port=5001, debug=True)
